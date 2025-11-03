@@ -8,6 +8,7 @@ const resetEnvVars = () => {
   process.env.TO_NUMBER = "447700900000";
   process.env.FROM_NUMBER = "447700900001";
   process.env.SUBJECT = "A great conversation!";
+  process.env.POSTMARK_MESSAGE_STREAM = "outbound";
 };
 
 beforeEach(resetEnvVars);
@@ -53,20 +54,37 @@ describe("SMS to Email", () => {
     headers: {},
     body: {
       text: smsTextValue,
+      msisdn: "447700900002",
+      to: "447700900003",
+      type: "text",
+      "message-id": "some-message-id",
+      "message-timestamp": "2024-03-30 16:00:00",
     },
   };
 
   test("smsToEmail transformation to have expected structure", () => {
     const transformedRequest = smsToEmail(inboundSmsWebhookRequest, {});
 
-    expect(transformedRequest.body.TextBody).toEqual(smsTextValue);
+    expect(transformedRequest.body.TextBody.startsWith(smsTextValue)).toBe(
+      true
+    );
+    expect(transformedRequest.body.TextBody).toContain("--- SMS Metadata ---");
+    expect(transformedRequest.body.TextBody).toContain(
+      '"text": "hello from SMS"'
+    );
     expect(transformedRequest.body.MessageStream).toEqual("outbound");
     expect(transformedRequest.body.Subject).toEqual(process.env.SUBJECT);
     expect(transformedRequest.body.Headers.length).toEqual(1);
+    expect(transformedRequest.body.Metadata).toEqual({
+      from_number: "447700900002",
+      to_number: "447700900003",
+      message_type: "text",
+      message_id: "some-message-id",
+    });
   });
 
   test("smsToEmail transformation header has default example.com domain", () => {
-    process.env.TO_EMAIL = "";
+    process.env.TO_EMAIL = "user@";
 
     const transformedRequest = smsToEmail(inboundSmsWebhookRequest, {});
 
@@ -74,5 +92,23 @@ describe("SMS to Email", () => {
     expect(messageIdHeader.Value).toEqual(
       "<omnitext/conversation/1@example.com>"
     );
+  });
+
+  test("smsToEmail transformation decodes binary payload when text not present", () => {
+    const binaryPayload = {
+      headers: {},
+      body: {
+        type: "binary",
+        data: Buffer.from("123456", "utf8").toString("hex"),
+        msisdn: "447700900004",
+      },
+    };
+
+    process.env.SUBJECT = "";
+
+    const transformedRequest = smsToEmail(binaryPayload, {});
+
+    expect(transformedRequest.body.Subject).toEqual("SMS from 447700900004");
+    expect(transformedRequest.body.TextBody).toContain("123456");
   });
 });
