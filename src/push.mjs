@@ -24,6 +24,7 @@ const syncSmsToEmail = async () => {
       FROM_EMAIL: process.env.FROM_EMAIL,
       TO_EMAIL: process.env.TO_EMAIL,
       SUBJECT: process.env.SUBJECT,
+      POSTMARK_MESSAGE_STREAM: process.env.POSTMARK_MESSAGE_STREAM,
     },
   };
 
